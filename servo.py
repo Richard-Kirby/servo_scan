@@ -7,43 +7,43 @@
 # servo_demo.py          # Send servo pulses to GPIO 4.
 # servo_demo.py 23 24 25 # Send servo pulses to GPIO 23, 24, 25.
 
-import sys
 import time
-import random
+import numpy
+
 import pigpio
-
-NUM_GPIO = 32
-
-MIN_WIDTH = 500
-MAX_WIDTH = 2000
-
-step = [0] * NUM_GPIO
-width = [0] * NUM_GPIO
-used = [False] * NUM_GPIO
 
 pi = pigpio.pi()
 
 if not pi.connected:
     exit()
 
-if len(sys.argv) == 1:
-    G = [21]
-else:
-    G = []
-    for a in sys.argv[1:]:
-        G.append(int(a))
+class PanTiltController:
+    def __init__(self, pan_start, pan_end, pan_gpio, tilt_start, tilt_end, tilt_gpio):
+        self.pan_start = pan_start
+        self.pan_end = pan_end
+        self.pan_gpio = pan_gpio
 
-for g in G:
-    used[g] = True
-    step[g] = random.randrange(5, 25)
-    if step[g] % 2 == 0:
-        step[g] = -step[g]
-    width[g] = random.randrange(MIN_WIDTH, MAX_WIDTH + 1)
+        self.tilt_start = tilt_start
+        self.tilt_end = tilt_end
+        self.tilt_gpio = tilt_gpio
 
-print("Sending servos pulses to GPIO {}, control C to stop.".
-      format(' '.join(str(g) for g in G)))
+    def pan_tilt(self, pan_begin, pan_stop, steps, delay):
+        pan_array = numpy.linspace(int(pan_begin * (self.pan_end - self.pan_start) + self.pan_start),
+                                   int(pan_stop * (self.pan_end - self.pan_start) + self.pan_start), steps, 'int16')
+
+        delay_array = [delay] * steps
+
+        cmd_array = list(zip(pan_array, delay_array))
+
+        print(cmd_array)
+
+        #print(pan_array)
 
 delay = 0.01
+
+pan_tilt_controller = PanTiltController(700, 2400, 25, 500, 2400, 21)
+
+pan_tilt_controller.pan_tilt(0, 1, 50, 0.01)
 
 while True:
 
@@ -57,17 +57,28 @@ while True:
 
         j= 500
 
-        for i in range (500, 2275, 5):
+        step = 100
+        step_normal_dir = True
+
+        for i in range (500, 2400, step):
             pi.set_servo_pulsewidth(21, i)
             time.sleep(delay)
 
-            pi.set_servo_pulsewidth(25, 700)
+            #pi.set_servo_pulsewidth(25, 700)
 
-            time.sleep(0.1)
-            for j in range (700, 2500, 5):
-                pi.set_servo_pulsewidth(25, j)
-                print("i {} j{}".format(i, j))
-                time.sleep(delay)
+            time.sleep(2)
+
+            if step_normal_dir == True:
+                for j in range (700, 2500, step):
+                    pi.set_servo_pulsewidth(25, j)
+                    print("dir {} i {} j{}".format(step_normal_dir, i, j))
+                    time.sleep(delay)
+            else:
+                for j in range (2500, 699, -step):
+                    pi.set_servo_pulsewidth(25, j)
+                    print("dir {} i {} j{}".format(step_normal_dir, i, j))
+                    time.sleep(delay)
+            step_normal_dir ^= True
 
             time.sleep(0.1)
 
@@ -111,9 +122,9 @@ while True:
     except KeyboardInterrupt:
         break
 
-print("\nTidying up")
+    except:
+        raise()
 
-for g in G:
-    pi.set_servo_pulsewidth(g, 0)
-
-pi.stop()
+    finally:
+        print("\nTidying up")
+        pi.stop()
